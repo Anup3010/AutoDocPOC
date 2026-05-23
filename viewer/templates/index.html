@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDoc — Intelligent Code Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sky: #e8f4fd;
+      --sky-mid: #bee3f8;
+      --blue: #3182ce;
+      --blue-dark: #2c5282;
+      --blue-light: #ebf8ff;
+      --teal: #38b2ac;
+      --teal-light: #e6fffa;
+      --mint: #f0fff4;
+      --text: #2d3748;
+      --text-light: #718096;
+      --text-muted: #a0aec0;
+      --white: #ffffff;
+      --card-bg: rgba(255,255,255,0.85);
+      --border: rgba(49,130,206,0.15);
+      --shadow-sm: 0 1px 4px rgba(44,82,130,0.08);
+      --shadow-md: 0 4px 20px rgba(44,82,130,0.12);
+      --shadow-lg: 0 8px 40px rgba(44,82,130,0.16);
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: linear-gradient(135deg, #e8f4fd 0%, #f0fff4 50%, #ebf8ff 100%);
+      min-height: 100vh;
+      color: var(--text);
+    }
+
+    /* ─── Header ─── */
+    header {
+      background: linear-gradient(135deg, var(--blue-dark) 0%, #2b6cb0 60%, var(--teal) 100%);
+      padding: 0 2rem;
+      box-shadow: 0 2px 20px rgba(44,82,130,0.3);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-inner {
+      max-width: 1280px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.25rem; font-weight: 700; color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .logo span { color: rgba(255,255,255,0.7); font-weight: 300; }
+    .header-badge {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 4px 12px; border-radius: 100px;
+      font-size: 0.75rem; font-weight: 500;
+    }
+
+    /* ─── Main ─── */
+    main {
+      max-width: 1280px; margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* ─── Hero Banner ─── */
+    .hero {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem 2.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-md);
+      display: flex; align-items: center; gap: 2rem;
+    }
+    .hero-text h1 {
+      font-size: 1.7rem; font-weight: 700;
+      color: var(--blue-dark); margin-bottom: 6px;
+    }
+    .hero-text p { color: var(--text-light); font-size: 0.95rem; line-height: 1.6; }
+    .hero-stats {
+      display: flex; gap: 1.5rem; margin-top: 1rem;
+    }
+    .stat-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--blue-light);
+      border: 1px solid var(--sky-mid);
+      border-radius: 100px;
+      padding: 5px 14px; font-size: 0.8rem; color: var(--blue);
+      font-weight: 500;
+    }
+    .hero-visual {
+      flex-shrink: 0;
+      width: 100px; height: 100px;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--teal) 100%);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem;
+      box-shadow: 0 8px 24px rgba(49,130,206,0.3);
+    }
+
+    /* ─── Empty State ─── */
+    .empty-state {
+      text-align: center; padding: 5rem 2rem;
+      background: var(--card-bg);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(12px);
+    }
+    .empty-state .emoji { font-size: 4rem; margin-bottom: 1rem; }
+    .empty-state h2 { color: var(--blue-dark); margin-bottom: 0.5rem; }
+    .empty-state p { color: var(--text-light); max-width: 500px; margin: 0 auto 1.5rem; line-height: 1.6; }
+    .code-block {
+      background: var(--text);
+      color: #68d391;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 1.25rem 1.5rem;
+      border-radius: var(--radius-sm);
+      text-align: left; font-size: 0.82rem; line-height: 1.7;
+      display: inline-block; max-width: 480px; width: 100%;
+    }
+
+    /* ─── Session Cards ─── */
+    .sessions-grid {
+      display: flex; flex-direction: column; gap: 1.5rem;
+    }
+    .session-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .session-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    /* Card header */
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(135deg, var(--blue-light) 0%, var(--teal-light) 100%);
+      border-bottom: 1px solid var(--border);
+    }
+    .card-header-left { display: flex; align-items: center; gap: 12px; }
+    .commit-badge {
+      background: var(--blue-dark); color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem; font-weight: 500;
+      padding: 4px 10px; border-radius: 6px;
+    }
+    .commit-msg {
+      font-weight: 600; color: var(--blue-dark);
+      font-size: 0.95rem;
+    }
+    .branch-tag {
+      background: var(--teal-light);
+      border: 1px solid rgba(56,178,172,0.3);
+      color: var(--teal);
+      font-size: 0.73rem; font-weight: 500;
+      padding: 2px 8px; border-radius: 100px;
+    }
+    .card-meta {
+      font-size: 0.78rem; color: var(--text-light);
+      display: flex; align-items: center; gap: 16px;
+    }
+    .card-meta span { display: flex; align-items: center; gap: 4px; }
+
+    /* Token strip */
+    .token-strip {
+      display: flex; align-items: center; gap: 1.5rem;
+      padding: 0.6rem 1.5rem;
+      background: linear-gradient(90deg, #f7fafc, var(--mint));
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .token-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .token-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem; color: var(--blue); font-weight: 600;
+    }
+    .token-item { display: flex; align-items: center; gap: 6px; }
+    .token-divider { width: 1px; height: 18px; background: var(--border); }
+    .cost-badge {
+      margin-left: auto;
+      background: #fffbeb;
+      border: 1px solid #f6e05e;
+      color: #744210;
+      font-size: 0.75rem; font-weight: 600;
+      padding: 2px 10px; border-radius: 100px;
+    }
+
+    /* Docs section */
+    .docs-section {
+      padding: 1.25rem 1.5rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    }
+    .doc-panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+      background: #fff;
+    }
+    .doc-panel-title {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 0.88rem;
+      color: var(--blue-dark); margin-bottom: 8px;
+    }
+    .doc-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem;
+    }
+    .doc-icon.full { background: linear-gradient(135deg, #ebf8ff, #bee3f8); }
+    .doc-icon.pr   { background: linear-gradient(135deg, #f0fff4, #c6f6d5); }
+
+    .doc-panel-desc {
+      font-size: 0.78rem; color: var(--text-light); margin-bottom: 12px; line-height: 1.5;
+    }
+
+    .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 6px;
+      font-size: 0.75rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      border: none; transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--blue); color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-teal { background: var(--teal); color: #fff; }
+    .btn-teal:hover { background: #2c7a7b; }
+    .btn-outline {
+      background: #fff; color: var(--blue);
+      border: 1px solid var(--blue);
+    }
+    .btn-outline:hover { background: var(--blue-light); }
+    .btn-gray {
+      background: #f7fafc; color: var(--text-light);
+      border: 1px solid #e2e8f0;
+    }
+    .btn-gray:hover { background: #edf2f7; }
+
+    /* ─── Changes strip ─── */
+    .changes-strip {
+      padding: 0.6rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 1rem;
+      font-size: 0.78rem; color: var(--text-light);
+      flex-wrap: wrap;
+    }
+    .pill-green {
+      background: #c6f6d5; color: #276749;
+      padding: 1px 8px; border-radius: 100px; font-weight: 600;
+    }
+    .pill-red {
+      background: #fed7d7; color: #9b2c2c;
+      padding: 1px 8px; border-radius: 100px; font-weight: 600;
+    }
+
+    /* ─── Section title ─── */
+    .section-title {
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    /* ─── How it works ─── */
+    .how-it-works {
+      background: var(--card-bg); backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.5rem; margin-top: 2rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .steps { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1rem; }
+    .step {
+      flex: 1; min-width: 150px;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; gap: 8px;
+    }
+    .step-num {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem;
+    }
+    .step h4 { font-size: 0.82rem; color: var(--blue-dark); font-weight: 600; }
+    .step p { font-size: 0.74rem; color: var(--text-light); line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">📄</div>
+      AutoDoc <span>POC</span>
+    </div>
+    <span class="header-badge">🤖 Powered by HuggingFace AI</span>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-text">
+      <h1>Automatic Code Documentation</h1>
+      <p>Every git commit triggers AI-powered documentation generation. New developers get up-to-speed instantly. Senior devs can review PRs with confidence.</p>
+      <div class="hero-stats">
+        <div class="stat-chip">📦 {{ sessions|length }} commits documented</div>
+        <div class="stat-chip">🐍 Python + FastAPI</div>
+        <div class="stat-chip">🤗 HuggingFace AI</div>
+      </div>
+    </div>
+    <div class="hero-visual">📋</div>
+  </div>
+
+  {% if not sessions %}
+  <!-- Empty state -->
+  <div class="empty-state">
+    <div class="emoji">🚀</div>
+    <h2>No documents yet</h2>
+    <p>Make a commit to your git repository to trigger automatic documentation generation.</p>
+    <div class="code-block">
+# 1. Set your HuggingFace key<br>
+export HF_API_KEY=hf_your_key_here<br><br>
+# 2. Make a change & commit<br>
+git add .<br>
+git commit -m "feat: add user endpoint"<br><br>
+# 3. Docs auto-generate! 🎉
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Sessions list -->
+  <div class="section-title">📁 Generated Documentation — {{ sessions|length }} commit{{ 's' if sessions|length != 1 }}</div>
+  <div class="sessions-grid">
+    {% for s in sessions %}
+    <div class="session-card">
+      <!-- Card Header -->
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="commit-badge">{{ s.commit.short_hash }}</span>
+          <div>
+            <div class="commit-msg">{{ s.commit.message }}</div>
+            <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
+              <span class="branch-tag">⎇ {{ s.commit.branch }}</span>
+              <span style="font-size:0.74rem;color:var(--text-muted)">by {{ s.commit.author }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span>📅 {{ s.timestamp[:4] }}-{{ s.timestamp[4:6] }}-{{ s.timestamp[6:8] }} {{ s.timestamp[9:11] }}:{{ s.timestamp[11:13] }}</span>
+          <span>📝 {{ s.files_changed or 0 }} files changed</span>
+        </div>
+      </div>
+
+      <!-- Token Strip -->
+      <div class="token-strip">
+        <span class="token-label">Token Usage</span>
+        <div class="token-item">
+          <span style="font-size:0.75rem">⬆️ Input:</span>
+          <span class="token-val">{{ "{:,}".format(s.token_usage.prompt_tokens) }}</span>
+        </div>
+        <div class="token-divider"></div>
+        <div class="token-item">
+          <span style="font-size:0.75rem">⬇️ Output:</span>
+          <span class="token-val">{{ "{:,}".format(s.token_usage.completion_tokens) }}</span>
+        </div>
+        <div class="token-divider"></div>
+        <div class="token-item">
+          <span style="font-size:0.75rem">∑ Total:</span>
+          <span class="token-val">{{ "{:,}".format(s.token_usage.total_tokens) }}</span>
+        </div>
+        <span class="cost-badge">💰 ~${{ "%.6f"|format(s.token_usage.estimated_cost_usd) }}</span>
+      </div>
+
+      <!-- Documents -->
+      <div class="docs-section">
+        <!-- Full Project Doc -->
+        <div class="doc-panel">
+          <div class="doc-panel-title">
+            <div class="doc-icon full">📘</div>
+            Full Project Documentation
+          </div>
+          <div class="doc-panel-desc">
+            Complete updated project doc — architecture, API endpoints, services, models, and getting started guide. For new developers.
+          </div>
+          <div class="btn-row">
+            <a href="/view/full/{{ s.timestamp }}" class="btn btn-primary">👁 Preview</a>
+            <a href="/download/full/docx/{{ s.timestamp }}" class="btn btn-outline">⬇ Word</a>
+            <a href="/download/full/pdf/{{ s.timestamp }}" class="btn btn-gray">⬇ PDF</a>
+            <a href="/download/full/md/{{ s.timestamp }}" class="btn btn-gray">⬇ MD</a>
+          </div>
+        </div>
+
+        <!-- PR Impact Doc -->
+        <div class="doc-panel">
+          <div class="doc-panel-title">
+            <div class="doc-icon pr">🔍</div>
+            PR Impact Analysis
+          </div>
+          <div class="doc-panel-desc">
+            What changed, what's impacted, risk assessment, and reviewer checklist. Helps senior devs review pull requests faster.
+          </div>
+          <div class="btn-row">
+            <a href="/view/pr/{{ s.timestamp }}" class="btn btn-teal">👁 Preview</a>
+            <a href="/download/pr/docx/{{ s.timestamp }}" class="btn btn-outline">⬇ Word</a>
+            <a href="/download/pr/pdf/{{ s.timestamp }}" class="btn btn-gray">⬇ PDF</a>
+            <a href="/download/pr/md/{{ s.timestamp }}" class="btn btn-gray">⬇ MD</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Changes summary -->
+      <div class="changes-strip">
+        📋 {{ s.changes_summary or "No changes summary available" }}
+        {% if s.token_usage %}
+        &nbsp;·&nbsp;
+        <span class="pill-green">+{{ s.token_usage.completion_tokens }} generated</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- How it works -->
+  <div class="how-it-works">
+    <div class="section-title">⚙️ How AutoDoc Works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Code Change</h4>
+        <p>Developer modifies API endpoints or service layer logic</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Git Commit</h4>
+        <p>Post-commit hook fires automatically on every commit</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>AST Parse</h4>
+        <p>Python AST extracts classes, methods, routes, docstrings</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h4>Git Diff</h4>
+        <p>Git diff captures exactly what changed in this commit</p>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <h4>HuggingFace AI</h4>
+        <p>Mistral-7B generates human-readable documentation</p>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <h4>2 Documents</h4>
+        <p>Full project doc + PR impact analysis in Word/PDF/MD</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

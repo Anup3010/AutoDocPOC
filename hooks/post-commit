@@ -1,0 +1,147 @@
+# #!/usr/bin/env python3
+# """
+# Git Post-Commit Hook — AutoDoc (Cross-platform: Mac/Linux/Windows)
+# Place this file at: .git/hooks/post-commit
+# Windows: ALSO copy hooks/post-commit.bat to .git/hooks/post-commit.bat
+# """
+
+# import os
+# import sys
+# import subprocess
+
+
+# def load_dotenv(repo_root):
+#     """Load .env file manually (works without python-dotenv installed)."""
+#     env_path = os.path.join(repo_root, ".env")
+#     if os.path.exists(env_path):
+#         with open(env_path) as f:
+#             for line in f:
+#                 line = line.strip()
+#                 if line and not line.startswith("#") and "=" in line:
+#                     key, _, val = line.partition("=")
+#                     os.environ.setdefault(key.strip(), val.strip())
+
+
+# # Path to project root (parent of .git/)
+# REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# # Load .env before reading HF_API_KEY
+# load_dotenv(REPO_ROOT)
+
+# HF_API_KEY = os.environ.get("HF_API_KEY", "")
+
+
+# def main():
+#     if not HF_API_KEY:
+#         print("\n[AutoDoc] WARNING: HF_API_KEY not set. Skipping documentation generation.")
+#         print("  Add it to your .env file:  HF_API_KEY=hf_your_key_here")
+#         sys.exit(0)  # Never block the commit
+
+#     print("\n[AutoDoc] Generating documentation for this commit...")
+
+#     env = os.environ.copy()
+#     env["HF_API_KEY"] = HF_API_KEY
+#     env["AUTODOC_OUTPUT_DIR"] = os.path.join(REPO_ROOT, "generated_docs")
+#     env["PYTHONPATH"] = REPO_ROOT
+
+#     # Use sys.executable so it runs in the same venv Python
+#     python_exe = sys.executable
+
+#     try:
+#         result = subprocess.run(
+#             [python_exe, "-m", "doc_generator.generator", REPO_ROOT],
+#             cwd=REPO_ROOT,
+#             env=env,
+#             timeout=300,
+#         )
+#         if result.returncode == 0:
+#             print("[AutoDoc] Documentation updated! View at: http://localhost:5000")
+#         else:
+#             print("[AutoDoc] Documentation generation had errors.")
+#     except subprocess.TimeoutExpired:
+#         print("[AutoDoc] Timed out (>5 min). Try running manually:")
+#         print(f"  python -m doc_generator.generator .")
+#     except FileNotFoundError:
+#         print(f"[AutoDoc] Python not found at: {python_exe}")
+#         print("  Make sure your venv is activated when committing.")
+#     except Exception as e:
+#         print(f"[AutoDoc] Unexpected error: {e}")
+
+#     sys.exit(0)  # Always exit 0 — never block the commit
+
+
+# if __name__ == "__main__":
+#     main()
+#!/usr/bin/env python3
+"""
+Git Post-Commit Hook — AutoDoc (Cross-platform: Mac/Linux/Windows)
+Place this file at: .git/hooks/post-commit
+Windows: ALSO copy hooks/post-commit.bat to .git/hooks/post-commit.bat
+"""
+
+import os
+import sys
+import subprocess
+
+
+def load_dotenv(repo_root):
+    """Load .env file manually (works without python-dotenv installed)."""
+    env_path = os.path.join(repo_root, ".env")
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, val = line.partition("=")
+                    os.environ.setdefault(key.strip(), val.strip())
+
+
+# Path to project root (parent of .git/)
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Load .env before reading HF_API_KEY
+load_dotenv(REPO_ROOT)
+
+HF_API_KEY = os.environ.get("HF_API_KEY", "")
+
+
+def main():
+    if not HF_API_KEY:
+        print("\n[AutoDoc] WARNING: HF_API_KEY not set. Skipping documentation generation.")
+        print("  Add it to your .env file:  HF_API_KEY=hf_your_key_here")
+        sys.exit(0)  # Never block the commit
+
+    print("\n[AutoDoc] Generating documentation for this commit...")
+
+    env = os.environ.copy()
+    env["HF_API_KEY"] = HF_API_KEY
+    env["AUTODOC_OUTPUT_DIR"] = os.path.join(REPO_ROOT, "generated_docs")
+    env["PYTHONPATH"] = REPO_ROOT
+
+    # Use sys.executable so it runs in the same venv Python
+    python_exe = "C:\Users\anup.shembade\AppData\Local\Programs\Python\Python313\python.exe"
+    try:
+        result = subprocess.run(
+            [python_exe, "-m", "doc_generator.generator", REPO_ROOT],
+            cwd=REPO_ROOT,
+            env=env,
+            timeout=300,
+        )
+        if result.returncode == 0:
+            print("[AutoDoc] Documentation updated! View at: http://localhost:5000")
+        else:
+            print("[AutoDoc] Documentation generation had errors.")
+    except subprocess.TimeoutExpired:
+        print("[AutoDoc] Timed out (>5 min). Try running manually:")
+        print(f"  python -m doc_generator.generator .")
+    except FileNotFoundError:
+        print(f"[AutoDoc] Python not found at: {python_exe}")
+        print("  Make sure your venv is activated when committing.")
+    except Exception as e:
+        print(f"[AutoDoc] Unexpected error: {e}")
+
+    sys.exit(0)  # Always exit 0 — never block the commit
+
+
+if __name__ == "__main__":
+    main()

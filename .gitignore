@@ -1,0 +1,5 @@
+hook_test.log
+generated_docs/
+__pycache__/
+*.pyc
+.env

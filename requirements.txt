@@ -1,0 +1,23 @@
+# AutoDoc POC — Python Dependencies
+# Install with: pip install -r requirements.txt
+#
+# Tested on Python 3.9, 3.10, 3.11, 3.12 — Windows / Mac / Linux
+
+# ── CRUD Application (FastAPI) ────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# ── Document Viewer (Flask) ───────────────────────────────────
+flask>=3.0.0
+markdown2>=2.4.12
+Jinja2>=3.1.2
+
+# ── Document Generation ───────────────────────────────────────
+requests>=2.31.0          # HuggingFace Inference API calls
+python-docx>=1.1.0        # Generate .docx Word documents
+reportlab>=4.1.0          # Generate .pdf documents
+
+# ── Utilities ─────────────────────────────────────────────────
+python-dotenv>=1.0.0      # Load HF_API_KEY from .env file
+httpx>=0.23.0             # Required by FastAPI TestClient (starlette)

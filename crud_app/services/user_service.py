@@ -10,7 +10,7 @@ from crud_app.models.user import UserCreate, UserUpdate, User
 
 
 class UserService:
-    """Service class for user CRUD operations and business logic."""
+
     
     def search_users_by_name(self, query: str) -> List[Dict]:
         """Search users by partial name match. Case insensitive."""

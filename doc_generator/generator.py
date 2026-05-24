@@ -21,6 +21,8 @@ from doc_generator.code_parser import parse_project, format_module_summary
 # ─────────────────────────────────────────────────────
 HF_API_KEY = os.environ.get("HF_API_KEY", "")
 HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"   # Free tier model
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = "gemini-2.5-flash"   # free, fast, good quality
 # Alternatives: "HuggingFaceH4/zephyr-7b-beta", "microsoft/Phi-3-mini-4k-instruct"
 
 DOCS_OUTPUT_DIR = os.environ.get("AUTODOC_OUTPUT_DIR", "generated_docs")
@@ -70,6 +72,58 @@ def estimate_cost(input_tokens: int, output_tokens: int, model: str = HF_MODEL) 
 # HuggingFace API Call
 # ─────────────────────────────────────────────────────
 def call_huggingface_api(prompt: str, max_tokens: int = 1500) -> Tuple[str, TokenUsage]:
+    """
+    Call Google Gemini API to generate documentation.
+    Drop-in replacement for HuggingFace — same inputs and outputs.
+    """
+    import requests
+
+    if not GEMINI_API_KEY:
+        raise ValueError(
+            "GEMINI_API_KEY not set. "
+            "Get your free key from: https://aistudio.google.com"
+        )
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.3
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Gemini API error {response.status_code}: {response.text[:300]}"
+        )
+
+    result = response.json()
+
+    # Extract generated text
+    text = result["candidates"][0]["content"]["parts"][0]["text"]
+
+    # Extract token usage (Gemini returns exact counts)
+    usage_meta = result.get("usageMetadata", {})
+    prompt_tokens = usage_meta.get("promptTokenCount", estimate_tokens(prompt))
+    output_tokens = usage_meta.get("candidatesTokenCount", estimate_tokens(text))
+    total_tokens = usage_meta.get("totalTokenCount", prompt_tokens + output_tokens)
+
+    usage = TokenUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=output_tokens,
+        total_tokens=total_tokens,
+        estimated_cost_usd=0.0    # Gemini free tier = $0
+    )
+    return text, usage
+
+# def call_huggingface_api(prompt: str, max_tokens: int = 1500) -> Tuple[str, TokenUsage]:
     """
     Call HuggingFace Inference API using requests (no SDK needed).
     

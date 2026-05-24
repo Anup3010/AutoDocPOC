@@ -21,6 +21,7 @@ class UserService:
         if query_lower in user["name"].lower()
     ]
 
+    '''Additional business logic methods can be added here, such as:'''
     def get_all_users(self, skip: int = 0, limit: int = 100) -> List[Dict]:
         """
         Retrieve all users with pagination support.

@@ -11,6 +11,15 @@ from crud_app.models.user import UserCreate, UserUpdate, User
 
 class UserService:
     """Service class for user CRUD operations and business logic."""
+    
+    def search_users_by_name(self, query: str) -> List[Dict]:
+        """Search users by partial name match. Case insensitive."""
+        db = get_db()
+        query_lower = query.lower()
+        return [
+        user for user in db["users"].values()
+        if query_lower in user["name"].lower()
+    ]
 
     def get_all_users(self, skip: int = 0, limit: int = 100) -> List[Dict]:
         """

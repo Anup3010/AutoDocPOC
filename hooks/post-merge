@@ -1,0 +1,14 @@
+#!/bin/sh
+# AutoDoc Post-Merge Hook
+# Fires when: git merge feature-branch (into master)
+# Generates: Full project documentation + PR analysis
+
+export GEMINI_API_KEY=$(grep "^GEMINI_API_KEY=" "$(cd "$(dirname "$0")/../.." && pwd)/.env" | cut -d'=' -f2)
+
+# Always generate both docs on merge
+export AUTODOC_MODE=both
+
+echo ""
+echo "[AutoDoc] Merge detected — generating full documentation..."
+
+"C:/Users/anup.shembade/AppData/Local/Programs/Python/Python313/python.exe" -m doc_generator.generator "$(cd "$(dirname "$0")/../.." && pwd)"

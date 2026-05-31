@@ -11,6 +11,10 @@ import hashlib
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass, asdict
+from markdown import markdown
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from doc_generator.git_utils import build_diff_result, get_full_project_code, GitDiffResult
 from doc_generator.code_parser import parse_project, format_module_summary
@@ -25,8 +29,14 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.5-flash"   # free, fast, good quality
 # Alternatives: "HuggingFaceH4/zephyr-7b-beta", "microsoft/Phi-3-mini-4k-instruct"
 
+confluence_url  = os.environ.get("CONFLUENCE_URL", "")
+confluence_user = os.environ.get("CONFLUENCE_USER", "")
+confluence_token = os.environ.get("CONFLUENCE_TOKEN", "")
+page_id         = os.environ.get("CONFLUENCE_PAGE_ID", "")
+
+
 DOCS_OUTPUT_DIR = os.environ.get("AUTODOC_OUTPUT_DIR", "generated_docs")
-MAX_CODE_CHARS = 8000   # Keep prompts under token limits
+MAX_CODE_CHARS = 6000   # Keep prompts under token limits
 MAX_DIFF_CHARS = 4000
 
 
@@ -71,7 +81,7 @@ def estimate_cost(input_tokens: int, output_tokens: int, model: str = HF_MODEL) 
 # ─────────────────────────────────────────────────────
 # HuggingFace API Call
 # ─────────────────────────────────────────────────────
-def call_huggingface_api(prompt: str, max_tokens: int = 1500) -> Tuple[str, TokenUsage]:
+def call_huggingface_api(prompt: str, max_tokens: int = 3000) -> Tuple[str, TokenUsage]:
     """
     Call Google Gemini API to generate documentation.
     Drop-in replacement for HuggingFace — same inputs and outputs.
@@ -97,7 +107,7 @@ def call_huggingface_api(prompt: str, max_tokens: int = 1500) -> Tuple[str, Toke
         }
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response = requests.post(url, headers=headers, json=payload, timeout=180)
 
     if response.status_code != 200:
         raise RuntimeError(
@@ -203,6 +213,63 @@ def call_huggingface_api(prompt: str, max_tokens: int = 1500) -> Tuple[str, Toke
 # ─────────────────────────────────────────────────────
 # Prompt Builders
 # ─────────────────────────────────────────────────────
+def push_to_confluence(markdown_content: str, commit_info: dict):
+    """
+    Push generated documentation to Confluence page automatically.
+    Requires: CONFLUENCE_URL, CONFLUENCE_USER, CONFLUENCE_TOKEN, 
+              CONFLUENCE_PAGE_ID in .env
+    """
+    import requests
+    import base64
+
+    # Read Confluence config from .env
+
+    
+    print("URL:", repr(os.environ.get("CONFLUENCE_URL")))
+    print("USER:", repr(os.environ.get("CONFLUENCE_USER")))
+    print("TOKEN:", bool(os.environ.get("CONFLUENCE_TOKEN")))
+    print("PAGE:", repr(os.environ.get("CONFLUENCE_PAGE_ID")))
+
+    if not all([confluence_url, confluence_user, confluence_token, page_id]):
+        print("⚠️  Confluence config missing — skipping Confluence update")
+        return
+
+    # Convert markdown to Confluence storage format (basic HTML)
+    import markdown2
+    html_content = markdown2.markdown(markdown_content)
+
+    # Get current page version (Confluence requires version number)
+    auth = (confluence_user, confluence_token)
+    page_url = f"{confluence_url}/rest/api/content/{page_id}"
+    current = requests.get(page_url, auth=auth).json()
+    current_version = current["version"]["number"]
+
+    # Update the page
+    payload = {
+        "version": {"number": current_version + 1},
+        "title": f"Project Documentation — {commit_info['short_hash']}",
+        "type": "page",
+        "body": {
+            "storage": {
+                "value": html_content,
+                "representation": "storage"
+            }
+        }
+    }
+
+    response = requests.put(
+        page_url,
+        json=payload,
+        auth=auth,
+        headers={"Content-Type": "application/json"}
+    )
+
+    if response.status_code == 200:
+        print(f"✅ Confluence page updated: {confluence_url}/wiki/pages/{page_id}")
+    else:
+        print(f"⚠️  Confluence update failed: {response.status_code}")
+        
+        
 def build_full_doc_prompt(project_summary: str, project_name: str) -> str:
     """Build prompt for full project documentation."""
     return f"""You are a senior software architect writing comprehensive technical documentation.
@@ -251,6 +318,11 @@ def build_pr_doc_prompt(
     return f"""You are a senior software engineer reviewing a pull request for a Python project.
 
 Analyze the following code changes and write a professional PR Review Document that will help a senior developer understand the impact and decide whether to approve or reject the pull request.
+Be very detailed. Write at least 300 words. 
+Each section must have multiple bullet points or paragraphs.
+Be specific about actual class names, method names, and endpoint paths that are changed or added.
+Do not give one-liner answers for any section. 
+Use the provided project context to understand how the changes fit into the existing codebase.
 
 PROJECT: {project_name}
 COMMIT: {commit.short_hash} by {commit.author} on {commit.date}
@@ -266,7 +338,7 @@ CODE CHANGES:
 {diff_text}
 
 Write a PR Review Document with these sections:
-1. **Change Summary** - What changed in plain English (2-3 sentences max)
+1. **Change Summary** - What changed in plain English (10 sentences max)
 2. **Files Changed** - Table of files modified with what changed in each
 3. **Impact Analysis** - What other parts of the codebase are affected by these changes
 4. **API Impact** - Are any API endpoints added, changed, or broken?
@@ -458,6 +530,12 @@ def generate_documents(repo_path: str = ".") -> GenerationResult:
 
     commit = diff_result.commit
     print(f"✅ Commit: {commit.short_hash} — {commit.message}")
+    
+    # Read mode set by the git hook
+    # pr_only  = feature branch commit → PR analysis only
+    # both     = master branch commit  → full doc + PR analysis
+    mode = os.environ.get("AUTODOC_MODE", "both")
+    print(f"📋 Mode: {mode} | Branch: {commit.branch}")
 
     # 2. Parse project code
     print("🔍 Parsing project code...")
@@ -470,53 +548,116 @@ def generate_documents(repo_path: str = ".") -> GenerationResult:
     )
 
     total_token_usage = TokenUsage(0, 0, 0, 0.0)
-
+    
     # ─── Document 1: Full Project Documentation ───
-    print("📝 Generating full project documentation...")
-    full_doc_prompt = build_full_doc_prompt(project_summary, project_name)
+    full_doc_md = None
+    full_doc_docx = None
+    full_doc_pdf = None
 
-    try:
-        full_doc_content, usage1 = call_huggingface_api(full_doc_prompt, max_tokens=2000)
-        total_token_usage.prompt_tokens += usage1.prompt_tokens
-        total_token_usage.completion_tokens += usage1.completion_tokens
-        total_token_usage.total_tokens += usage1.total_tokens
-        total_token_usage.estimated_cost_usd += usage1.estimated_cost_usd
-        print(f"   Tokens: {usage1.prompt_tokens} in / {usage1.completion_tokens} out")
-    except Exception as e:
-        return GenerationResult(
-            success=False, full_doc_path=None, pr_doc_path=None,
-            token_usage=None, error=f"Full doc generation failed: {str(e)}",
-            generation_time_sec=time.time() - start_time
+    if mode in ("both", "full_only"):
+        print("📝 Generating full project documentation...")
+        full_doc_prompt = build_full_doc_prompt(project_summary, project_name)
+
+        try:
+            full_doc_content, usage1 = call_huggingface_api(
+                full_doc_prompt, max_tokens=6000
+            )
+            total_token_usage.prompt_tokens += usage1.prompt_tokens
+            total_token_usage.completion_tokens += usage1.completion_tokens
+            total_token_usage.total_tokens += usage1.total_tokens
+            total_token_usage.estimated_cost_usd += usage1.estimated_cost_usd
+            print(f"   Tokens: {usage1.prompt_tokens} in / {usage1.completion_tokens} out")
+
+        except Exception as e:
+            return GenerationResult(
+                success=False, full_doc_path=None, pr_doc_path=None,
+                token_usage=None, error=f"Full doc generation failed: {str(e)}",
+                generation_time_sec=time.time() - start_time
+            )
+
+        full_doc_header = (
+            f"# {project_name} — Project Documentation\n\n"
+            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n"
+            f"**Latest Commit:** `{commit.short_hash}` — {commit.message}  \n"
+            f"**Author:** {commit.author} | **Branch:** {commit.branch}  \n"
+            f"**Token Usage:** {usage1.prompt_tokens} input / "
+            f"{usage1.completion_tokens} output "
+            f"(~{usage1.total_tokens} total)\n\n---\n\n"
         )
+        full_doc_text = full_doc_header + full_doc_content
 
-    # Add header
-    full_doc_header = (
-        f"# {project_name} — Project Documentation\n\n"
-        f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n"
-        f"**Latest Commit:** `{commit.short_hash}` — {commit.message}  \n"
-        f"**Author:** {commit.author} | **Branch:** {commit.branch}  \n"
-        f"**Token Usage:** {usage1.prompt_tokens} input / {usage1.completion_tokens} output "
-        f"(~{usage1.total_tokens} total)\n\n---\n\n"
-    )
-    full_doc_text = full_doc_header + full_doc_content
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        full_doc_md   = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.md")
+        full_doc_docx = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.docx")
+        full_doc_pdf  = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.pdf")
 
-    # Save full doc
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    full_doc_md = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.md")
-    full_doc_docx = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.docx")
-    full_doc_pdf = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.pdf")
+        save_as_markdown(full_doc_text, full_doc_md)
+        save_as_docx(full_doc_text, full_doc_docx,
+                     f"{project_name} — Project Documentation")
+        save_as_pdf(full_doc_text, full_doc_pdf,
+                    f"{project_name} — Project Documentation")
+        print(f"✅ Full doc saved: {full_doc_md}")
 
-    save_as_markdown(full_doc_text, full_doc_md)
-    save_as_docx(full_doc_text, full_doc_docx, f"{project_name} — Project Documentation")
-    save_as_pdf(full_doc_text, full_doc_pdf, f"{project_name} — Project Documentation")
-    print(f"✅ Full doc saved: {full_doc_md}")
+        # Push to Confluence
+        if full_doc_md and os.path.exists(full_doc_md):
+            with open(full_doc_md) as f:
+                content = f.read()
+            push_to_confluence(content, {
+                "short_hash": commit.short_hash,
+                "message": commit.message
+            })
 
+    else:
+        print("⏭️  Skipping full doc — feature branch (runs on master only)")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # # ─── Document 1: Full Project Documentation ───
+    # print("📝 Generating full project documentation...")
+    # full_doc_prompt = build_full_doc_prompt(project_summary, project_name)
+
+    # try:
+    #     full_doc_content, usage1 = call_huggingface_api(full_doc_prompt, max_tokens=8000)
+    #     total_token_usage.prompt_tokens += usage1.prompt_tokens
+    #     total_token_usage.completion_tokens += usage1.completion_tokens
+    #     total_token_usage.total_tokens += usage1.total_tokens
+    #     total_token_usage.estimated_cost_usd += usage1.estimated_cost_usd
+    #     print(f"   Tokens: {usage1.prompt_tokens} in / {usage1.completion_tokens} out")
+    # except Exception as e:
+    #     return GenerationResult(
+    #         success=False, full_doc_path=None, pr_doc_path=None,
+    #         token_usage=None, error=f"Full doc generation failed: {str(e)}",
+    #         generation_time_sec=time.time() - start_time
+    #     )
+
+    # # Add header
+    # full_doc_header = (
+    #     f"# {project_name} — Project Documentation\n\n"
+    #     f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n"
+    #     f"**Latest Commit:** `{commit.short_hash}` — {commit.message}  \n"
+    #     f"**Author:** {commit.author} | **Branch:** {commit.branch}  \n"
+    #     f"**Token Usage:** {usage1.prompt_tokens} input / {usage1.completion_tokens} output "
+    #     f"(~{usage1.total_tokens} total)\n\n---\n\n"
+    # )
+    # full_doc_text = full_doc_header + full_doc_content
+
+    # # Save full doc
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # full_doc_md = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.md")
+    # full_doc_docx = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.docx")
+    # full_doc_pdf = os.path.join(DOCS_OUTPUT_DIR, f"project_doc_{timestamp}.pdf")
+
+    # save_as_markdown(full_doc_text, full_doc_md)
+    # save_as_docx(full_doc_text, full_doc_docx, f"{project_name} — Project Documentation")
+    # save_as_pdf(full_doc_text, full_doc_pdf, f"{project_name} — Project Documentation")
+    # print(f"✅ Full doc saved: {full_doc_md}")
+    
+    
     # ─── Document 2: PR / Commit Impact Analysis ───
     print("🔍 Generating PR impact analysis...")
     pr_doc_prompt = build_pr_doc_prompt(diff_result, project_summary, project_name)
 
     try:
-        pr_doc_content, usage2 = call_huggingface_api(pr_doc_prompt, max_tokens=1500)
+        pr_doc_content, usage2 = call_huggingface_api(pr_doc_prompt, max_tokens=4000)
         total_token_usage.prompt_tokens += usage2.prompt_tokens
         total_token_usage.completion_tokens += usage2.completion_tokens
         total_token_usage.total_tokens += usage2.total_tokens
@@ -538,14 +679,64 @@ def generate_documents(repo_path: str = ".") -> GenerationResult:
     )
     pr_doc_text = pr_doc_header + pr_doc_content
 
-    pr_doc_md = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.md")
-    pr_doc_docx = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.docx")
-    pr_doc_pdf = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.pdf")
+    pr_doc_md   = os.path.join(DOCS_OUTPUT_DIR,
+                               f"pr_analysis_{commit.short_hash}_{timestamp}.md")
+    pr_doc_docx = os.path.join(DOCS_OUTPUT_DIR,
+                               f"pr_analysis_{commit.short_hash}_{timestamp}.docx")
+    pr_doc_pdf  = os.path.join(DOCS_OUTPUT_DIR,
+                               f"pr_analysis_{commit.short_hash}_{timestamp}.pdf")
 
     save_as_markdown(pr_doc_text, pr_doc_md)
-    save_as_docx(pr_doc_text, pr_doc_docx, f"PR Impact Analysis — {commit.short_hash}")
-    save_as_pdf(pr_doc_text, pr_doc_pdf, f"PR Impact Analysis — {commit.short_hash}")
+    save_as_docx(pr_doc_text, pr_doc_docx,
+                 f"PR Impact Analysis — {commit.short_hash}")
+    save_as_pdf(pr_doc_text, pr_doc_pdf,
+                f"PR Impact Analysis — {commit.short_hash}")
     print(f"✅ PR doc saved: {pr_doc_md}")
+
+    # ─── Document 2: PR / Commit Impact Analysis ───
+    # print("🔍 Generating PR impact analysis...")
+    # pr_doc_prompt = build_pr_doc_prompt(diff_result, project_summary, project_name)
+
+    # try:
+    #     pr_doc_content, usage2 = call_huggingface_api(pr_doc_prompt, max_tokens=4000)
+    #     total_token_usage.prompt_tokens += usage2.prompt_tokens
+    #     total_token_usage.completion_tokens += usage2.completion_tokens
+    #     total_token_usage.total_tokens += usage2.total_tokens
+    #     total_token_usage.estimated_cost_usd += usage2.estimated_cost_usd
+    #     print(f"   Tokens: {usage2.prompt_tokens} in / {usage2.completion_tokens} out")
+    # except Exception as e:
+    #     pr_doc_content = f"⚠️ PR analysis generation failed: {str(e)}"
+    #     usage2 = TokenUsage(0, 0, 0, 0.0)
+
+    # pr_doc_header = (
+    #     f"# PR Impact Analysis — `{commit.short_hash}`\n\n"
+    #     f"**Commit:** {commit.short_hash} | **Branch:** {commit.branch}  \n"
+    #     f"**Author:** {commit.author} ({commit.email})  \n"
+    #     f"**Date:** {commit.date}  \n"
+    #     f"**Message:** *{commit.message}*  \n"
+    #     f"**Changes:** +{diff_result.total_additions} / -{diff_result.total_deletions} lines  \n"
+    #     f"**Token Usage:** {usage2.prompt_tokens} input / {usage2.completion_tokens} output "
+    #     f"(~{usage2.total_tokens} total)\n\n---\n\n"
+    # )
+    # pr_doc_text = pr_doc_header + pr_doc_content
+
+    # pr_doc_md = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.md")
+    # pr_doc_docx = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.docx")
+    # pr_doc_pdf = os.path.join(DOCS_OUTPUT_DIR, f"pr_analysis_{commit.short_hash}_{timestamp}.pdf")
+
+    # save_as_markdown(pr_doc_text, pr_doc_md)
+    # save_as_docx(pr_doc_text, pr_doc_docx, f"PR Impact Analysis — {commit.short_hash}")
+    # save_as_pdf(pr_doc_text, pr_doc_pdf, f"PR Impact Analysis — {commit.short_hash}")
+    # print(f"✅ PR doc saved: {pr_doc_md}")
+    
+    # After saving files — push to Confluence
+    if full_doc_md and os.path.exists(full_doc_md):
+        with open(full_doc_md) as f:
+            content = f.read()
+        push_to_confluence(content, {
+            "short_hash": commit.short_hash,
+            "message": commit.message
+        })
 
     # Save metadata JSON for the viewer
     meta = {

@@ -1,28 +1,14 @@
 @echo off
-REM AutoDoc Post-Commit Hook — Windows
-REM Fires on every git commit
-
-REM Load .env file
 if exist "%~dp0..\..\..\.env" (
     for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0..\..\..\.env") do (
         if "%%A"=="GEMINI_API_KEY" set GEMINI_API_KEY=%%B
     )
 )
-
-REM Check key is set
 if "%GEMINI_API_KEY%"=="" (
-    echo.
     echo [AutoDoc] WARNING: GEMINI_API_KEY not set. Skipping.
-    echo [AutoDoc] Add GEMINI_API_KEY=your_key to .env file
     exit /b 0
 )
-
-REM Get current branch
 for /f %%B in ('git rev-parse --abbrev-ref HEAD') do set CURRENT_BRANCH=%%B
-echo.
-echo [AutoDoc] Branch: %CURRENT_BRANCH%
-
-REM Set mode based on branch
 if "%CURRENT_BRANCH%"=="master" (
     set AUTODOC_MODE=both
 ) else if "%CURRENT_BRANCH%"=="main" (
@@ -30,21 +16,13 @@ if "%CURRENT_BRANCH%"=="master" (
 ) else (
     set AUTODOC_MODE=pr_only
 )
-echo [AutoDoc] Mode: %AUTODOC_MODE%
-
-REM Set paths
+echo [AutoDoc] Branch: %CURRENT_BRANCH% Mode: %AUTODOC_MODE%
 set REPO_ROOT=%~dp0..\..
 set PYTHONPATH=%REPO_ROOT%
-
-echo [AutoDoc] Generating documentation...
-
-REM Run generator
 "C:/Users/anup.shembade/AppData/Local/Programs/Python/Python313/python.exe" -m doc_generator.generator "%REPO_ROOT%"
-
 if %errorlevel% equ 0 (
-    echo [AutoDoc] Done! View at: http://localhost:5000
+    echo [AutoDoc] Done! http://localhost:5000
 ) else (
-    echo [AutoDoc] Generation had errors.
+    echo [AutoDoc] Had errors.
 )
-
 exit /b 0

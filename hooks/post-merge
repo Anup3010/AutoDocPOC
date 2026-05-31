@@ -22,21 +22,11 @@ if not GEMINI_API_KEY:
     print("[AutoDoc] WARNING: GEMINI_API_KEY not set")
     sys.exit(0)
 
-branch = subprocess.run(
-    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-    cwd=REPO_ROOT,
-    capture_output=True,
-    text=True
-).stdout.strip()
-
-print(f"\n[AutoDoc] Branch: {branch}")
-
-mode = "both" if branch in ["master", "main"] else "pr_only"
-print(f"[AutoDoc] Mode: {mode}")
+print("\n[AutoDoc] Merge detected - generating full documentation...")
 
 env = os.environ.copy()
 env["GEMINI_API_KEY"]     = GEMINI_API_KEY
-env["AUTODOC_MODE"]       = mode
+env["AUTODOC_MODE"]       = "both"
 env["AUTODOC_OUTPUT_DIR"] = os.path.join(REPO_ROOT, "generated_docs")
 env["PYTHONPATH"]         = REPO_ROOT
 

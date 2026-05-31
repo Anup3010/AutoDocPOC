@@ -1,6 +1,6 @@
 @echo off
-REM AutoDoc Post-Commit Hook — Windows
-REM Fires on every git commit
+REM AutoDoc Post-Merge Hook — Windows
+REM Fires when any branch is merged
 
 REM Load .env file
 if exist "%~dp0..\..\..\.env" (
@@ -17,26 +17,13 @@ if "%GEMINI_API_KEY%"=="" (
     exit /b 0
 )
 
-REM Get current branch
-for /f %%B in ('git rev-parse --abbrev-ref HEAD') do set CURRENT_BRANCH=%%B
 echo.
-echo [AutoDoc] Branch: %CURRENT_BRANCH%
+echo [AutoDoc] Merge detected - generating full documentation...
 
-REM Set mode based on branch
-if "%CURRENT_BRANCH%"=="master" (
-    set AUTODOC_MODE=both
-) else if "%CURRENT_BRANCH%"=="main" (
-    set AUTODOC_MODE=both
-) else (
-    set AUTODOC_MODE=pr_only
-)
-echo [AutoDoc] Mode: %AUTODOC_MODE%
-
-REM Set paths
+REM Always both on merge
+set AUTODOC_MODE=both
 set REPO_ROOT=%~dp0..\..
 set PYTHONPATH=%REPO_ROOT%
-
-echo [AutoDoc] Generating documentation...
 
 REM Run generator
 "C:/Users/anup.shembade/AppData/Local/Programs/Python/Python313/python.exe" -m doc_generator.generator "%REPO_ROOT%"

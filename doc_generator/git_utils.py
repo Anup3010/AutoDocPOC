@@ -101,7 +101,7 @@ def get_current_commit_info(repo_path: str = ".") -> Optional[CommitInfo]:
         branch=branch_out or "unknown"
     )
 
-"""test comment"""
+
 def get_diff_for_commit(repo_path: str = ".", commit_hash: str = "HEAD") -> List[FileChange]:
     """Get the file changes for a specific commit."""
 

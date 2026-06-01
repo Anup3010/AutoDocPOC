@@ -15,6 +15,23 @@ from dataclasses import dataclass, asdict
 from doc_generator.git_utils import build_diff_result, get_full_project_code, GitDiffResult
 from doc_generator.code_parser import parse_project, format_module_summary
 
+# Load .env only when running locally
+# On GitHub Actions secrets come from environment directly
+if os.path.exists(".env"):
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        print("📁 Local mode — loaded from .env file")
+    except ImportError:
+        # Manual load if python-dotenv not installed
+        with open(".env") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, val = line.partition("=")
+                    os.environ.setdefault(key.strip(), val.strip())
+else:
+    print("☁️  CI mode — using GitHub Actions secrets")
 
 # ─────────────────────────────────────────────────────
 # Configuration
@@ -51,6 +68,10 @@ class GenerationResult:
 # ─────────────────────────────────────────────────────
 # Token estimation utilities
 # ─────────────────────────────────────────────────────
+
+
+    
+    
 def estimate_tokens(text: str) -> int:
     """
     Rough token estimation: ~4 chars per token for English/code.

@@ -1,7 +1,11 @@
 @echo off
 if exist "%~dp0..\..\..\.env" (
     for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0..\..\..\.env") do (
-        if "%%A"=="GEMINI_API_KEY" set GEMINI_API_KEY=%%B
+        if "%%A"=="GEMINI_API_KEY"     set GEMINI_API_KEY=%%B
+        if "%%A"=="CONFLUENCE_URL"     set CONFLUENCE_URL=%%B
+        if "%%A"=="CONFLUENCE_USER"    set CONFLUENCE_USER=%%B
+        if "%%A"=="CONFLUENCE_TOKEN"   set CONFLUENCE_TOKEN=%%B
+        if "%%A"=="CONFLUENCE_PAGE_ID" set CONFLUENCE_PAGE_ID=%%B
     )
 )
 if "%GEMINI_API_KEY%"=="" (

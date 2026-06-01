@@ -39,7 +39,6 @@ class GitDiffResult:
     total_deletions: int
     summary: str
 
-
 def run_git(args: List[str], cwd: str = ".") -> Tuple[str, str, int]:
     """Run a git command and return stdout, stderr, returncode."""
     try:
@@ -47,14 +46,34 @@ def run_git(args: List[str], cwd: str = ".") -> Tuple[str, str, int]:
             ["git"] + args,
             cwd=cwd,
             capture_output=True,
-            text=True,
-            timeout=30
+            timeout=30,
+            encoding='utf-8',
+            errors='replace'    # handles any unicode characters safely
         )
-        return result.stdout.strip(), result.stderr.strip(), result.returncode
+        stdout = result.stdout.replace('\r\n', '\n').replace('\r', '\n').strip()
+        stderr = result.stderr.replace('\r\n', '\n').replace('\r', '\n').strip()
+        return stdout, stderr, result.returncode
     except subprocess.TimeoutExpired:
         return "", "Git command timed out", 1
     except FileNotFoundError:
         return "", "Git not found in PATH", 1
+    except Exception as e:
+        return "", str(e), 1
+# def run_git(args: List[str], cwd: str = ".") -> Tuple[str, str, int]:
+#     """Run a git command and return stdout, stderr, returncode."""
+#     try:
+#         result = subprocess.run(
+#             ["git"] + args,
+#             cwd=cwd,
+#             capture_output=True,
+#             text=True,
+#             timeout=30
+#         )
+#         return result.stdout.strip(), result.stderr.strip(), result.returncode
+#     except subprocess.TimeoutExpired:
+#         return "", "Git command timed out", 1
+#     except FileNotFoundError:
+#         return "", "Git not found in PATH", 1
 
 
 def get_current_commit_info(repo_path: str = ".") -> Optional[CommitInfo]:
@@ -85,30 +104,32 @@ def get_current_commit_info(repo_path: str = ".") -> Optional[CommitInfo]:
 
 def get_diff_for_commit(repo_path: str = ".", commit_hash: str = "HEAD") -> List[FileChange]:
     """Get the file changes for a specific commit."""
-    # Get list of changed files with status
+
+    # Step 1 — Get changed files list
     stdout, _, code = run_git(
         ["diff-tree", "--no-commit-id", "-r", "--name-status", commit_hash],
         cwd=repo_path
     )
-    if code != 0:
-        # Might be first commit
+
+    if code != 0 or not stdout.strip():
         stdout, _, code = run_git(
             ["show", "--name-status", "--format=", commit_hash],
             cwd=repo_path
         )
 
-    changed_files = []
     file_statuses = {}
-
     for line in stdout.splitlines():
-        if not line.strip():
+        line = line.strip().rstrip('\r')
+        if not line:
             continue
         parts = line.split("\t", 1)
         if len(parts) == 2:
-            status, filepath = parts[0].strip(), parts[1].strip()
-            file_statuses[filepath] = status[0]  # First char: A, M, D, R
+            status = parts[0].strip().rstrip('\r')
+            filepath = parts[1].strip().rstrip('\r')
+            if any(filepath.endswith(ext) for ext in ['.py', '.cs', '.java']):
+                file_statuses[filepath] = status[0]
 
-    # Get stats
+    # Step 2 — Get line stats
     stats_out, _, _ = run_git(
         ["show", "--stat", "--format=", commit_hash],
         cwd=repo_path
@@ -116,26 +137,40 @@ def get_diff_for_commit(repo_path: str = ".", commit_hash: str = "HEAD") -> List
 
     file_stats = {}
     for line in stats_out.splitlines():
-        match = re.match(r'\s*(.+?)\s+\|\s+(\d+)\s+([+-]+)', line)
+        line = line.strip().rstrip('\r')
+        match = re.match(r'(.+?)\s+\|\s+(\d+)\s+([+-]*)', line)
         if match:
-            filepath = match.group(1).strip()
-            total = int(match.group(2))
-            changes = match.group(3)
-            additions = changes.count('+')
-            deletions = changes.count('-')
+            filepath = match.group(1).strip().rstrip('\r')
+            additions = match.group(3).count('+')
+            deletions = match.group(3).count('-')
             file_stats[filepath] = (additions, deletions)
 
-    # Get full diffs per file
+    # Step 3 — Get actual diff per file
+    changed_files = []
     for filepath, status in file_statuses.items():
-        if not filepath.endswith('.py'):
-            continue  # Focus on Python files for this POC
+        try:
+            diff_out, _, _ = run_git(
+                ["show", "--text", commit_hash, "--", filepath],
+                cwd=repo_path
+            )
+            diff_out = diff_out.replace('\r\n', '\n').replace('\r', '\n')
+        except Exception:
+            diff_out = ""
 
-        diff_out, _, _ = run_git(
-            ["show", commit_hash, "--", filepath],
-            cwd=repo_path
+        # Count actual line changes from diff
+        actual_additions = sum(
+            1 for line in diff_out.splitlines()
+            if line.startswith('+') and not line.startswith('+++')
+        )
+        actual_deletions = sum(
+            1 for line in diff_out.splitlines()
+            if line.startswith('-') and not line.startswith('---')
         )
 
-        stats = file_stats.get(filepath, (0, 0))
+        stats = file_stats.get(filepath, (actual_additions, actual_deletions))
+        if stats == (0, 0) and (actual_additions > 0 or actual_deletions > 0):
+            stats = (actual_additions, actual_deletions)
+
         ext = os.path.splitext(filepath)[1].lstrip('.')
 
         changed_files.append(FileChange(
@@ -143,11 +178,79 @@ def get_diff_for_commit(repo_path: str = ".", commit_hash: str = "HEAD") -> List
             status=status,
             additions=stats[0],
             deletions=stats[1],
-            diff=diff_out[:3000],  # Limit diff size
+            diff=diff_out[:4000],
             file_type=ext or "unknown"
         ))
 
     return changed_files
+
+
+
+# def get_diff_for_commit(repo_path: str = ".", commit_hash: str = "HEAD") -> List[FileChange]:
+#     """Get the file changes for a specific commit."""
+#     # Get list of changed files with status
+#     stdout, _, code = run_git(
+#         ["diff-tree", "--no-commit-id", "-r", "--name-status", commit_hash],
+#         cwd=repo_path
+#     )
+#     if code != 0:
+#         # Might be first commit
+#         stdout, _, code = run_git(
+#             ["show", "--name-status", "--format=", commit_hash],
+#             cwd=repo_path
+#         )
+
+#     changed_files = []
+#     file_statuses = {}
+
+#     for line in stdout.splitlines():
+#         if not line.strip():
+#             continue
+#         parts = line.split("\t", 1)
+#         if len(parts) == 2:
+#             status, filepath = parts[0].strip(), parts[1].strip()
+#             file_statuses[filepath] = status[0]  # First char: A, M, D, R
+
+#     # Get stats
+#     stats_out, _, _ = run_git(
+#         ["show", "--stat", "--format=", commit_hash],
+#         cwd=repo_path
+#     )
+
+#     file_stats = {}
+#     for line in stats_out.splitlines():
+#         match = re.match(r'\s*(.+?)\s+\|\s+(\d+)\s+([+-]+)', line)
+#         if match:
+#             filepath = match.group(1).strip()
+#             total = int(match.group(2))
+#             changes = match.group(3)
+#             additions = changes.count('+')
+#             deletions = changes.count('-')
+#             file_stats[filepath] = (additions, deletions)
+
+#     # Get full diffs per file
+#     for filepath, status in file_statuses.items():
+#         if not filepath.endswith('.py'):
+#             continue  # Focus on Python files for this POC
+
+#         diff_out, _, _ = run_git(
+#             ["show", commit_hash, "--", filepath],
+#             cwd=repo_path
+#         )
+
+#         stats = file_stats.get(filepath, (0, 0))
+#         ext = os.path.splitext(filepath)[1].lstrip('.')
+
+#         changed_files.append(FileChange(
+#             path=filepath,
+#             status=status,
+#             additions=stats[0],
+#             deletions=stats[1],
+#             diff=diff_out[:3000],  # Limit diff size
+#             file_type=ext or "unknown"
+#         ))
+
+#     return changed_files
 
 
 def get_full_project_code(repo_path: str = ".", extensions: List[str] = None) -> Dict[str, str]:

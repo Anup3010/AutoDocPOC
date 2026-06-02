@@ -12,7 +12,7 @@ if "%GEMINI_API_KEY%"=="" (
     echo [AutoDoc] WARNING: GEMINI_API_KEY not set. Skipping.
     exit /b 0
 )
-echo [AutoDoc] Merge detected - generating full documentation...
+echo [AutoDoc] Merge detected - generating full documentation + updating Confluence...
 set AUTODOC_MODE=both
 set REPO_ROOT=%~dp0..\..
 set PYTHONPATH=%REPO_ROOT%

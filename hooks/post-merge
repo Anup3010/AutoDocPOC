@@ -5,5 +5,5 @@ export CONFLUENCE_USER=$(grep "^CONFLUENCE_USER=" "$(cd "$(dirname "$0")/../.." 
 export CONFLUENCE_TOKEN=$(grep "^CONFLUENCE_TOKEN=" "$(cd "$(dirname "$0")/../.." && pwd)/.env" | cut -d'=' -f2)
 export CONFLUENCE_PAGE_ID=$(grep "^CONFLUENCE_PAGE_ID=" "$(cd "$(dirname "$0")/../.." && pwd)/.env" | cut -d'=' -f2)
 export AUTODOC_MODE=both
-echo "[AutoDoc] Merge detected - generating full documentation..."
+echo "[AutoDoc] Merge detected - generating full documentation + updating Confluence..."
 "C:/Users/anup.shembade/AppData/Local/Programs/Python/Python313/python.exe" -m doc_generator.generator "$(cd "$(dirname "$0")/../.." && pwd)"

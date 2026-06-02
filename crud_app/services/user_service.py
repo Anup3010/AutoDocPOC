@@ -182,6 +182,3 @@ class UserService:
         """Return the count of currently active users."""
         db = get_db()
         return sum(1 for u in db["users"].values() if u["is_active"])
-
-
-# Singleton instance
